@@ -20,7 +20,7 @@ set.seed(2)
 #############################################################
 ######Simulation of data: scenario I(Spread contamination)  #########
 #############################################################
-# Para generaci?n de cellwise outliersa
+# Para generacion de cellwise outliersa
 alp.0 <- 0.03
 # numero de grupos
 K <- 2 
@@ -270,11 +270,6 @@ for(k in 1:K){
   W.reduc[which(cls!=k),,k]<-rep(0,p)
 }
 
-# heatmap(rijk[,,2],scale="none",Colv=NA,Rowv=NA)
-# heatmap(W[,,2],scale="none",Colv=NA,Rowv=NA)
-# heatmap(W.reduc[,,2],scale="none",Colv=NA,Rowv=NA)
-
-
 ##################################
 ### Iteraciones (loops) ##########
 
@@ -447,17 +442,6 @@ for (k in (1:K)){
   lines(s,m.opt[,k],lwd=3)
 }
 
-# # Grafico grupos separados con las coordenadas no recortadas
-# par(mfrow=c(1,K))
-# for (k in (1:K)){
-#   X.grupo <- X[cls.opt==k,]
-#   W.grupo <- W.opt[cls.opt==k,,k]
-#   plot(s,X.grupo[1,],type="n",col=k+1,ylim=c(range(X)[1],range(X)[2]),xlab="",ylab="",main=paste("Cluster",k))
-#   for (i in (1:dim(X.grupo)[1])){
-#     points(s[which(W.grupo[i,]!=0)],X.grupo[i,W.grupo[i,]!=0],pch=19,cex=0.5)
-#   }
-#   lines(s,m.opt[,k],col=k+1,lwd=3)
-# }
 
 # Grafico autofunciones estimadas
 par(mfrow=c(K,q))
