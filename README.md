@@ -20,20 +20,20 @@ set.seed(2)
 #############################################################
 ######Simulation of data: scenario I(Spread contamination)  #########
 #############################################################
-# Para generacion de cellwise outliersa
+# For generation of cellwise outliersa
 alp.0 <- 0.03
-# numero de grupos
+# number of groups
 K <- 2 
-# Dimension
+# Dimention
 p<- 100
-# Dimension intrinseca
+# Intrinsic Dimension
 q <- 2
 
-# tama?os de los grupos (igual en los dos grupos)
+# group sizes (same in both groups)
 n.i <- rep(200,K)
 n <- sum(n.i[1:K])
 
-# Generando datos (trabajamos en intervalo [0,1])
+# Generating data (we work in interval [0,1])
 s <- (1:p)/p
 
 
@@ -60,15 +60,15 @@ for (i in (n.i[1]+1):(n.i[1]+n.i[2])){
     X[i,] <- datos.sin.error[i,]+rnorm(p,0,var.error)
   }
   
-  # Generando cellwise outliers dispersos (mitad y mitad a cada lado)
+  # Generating scattered cellwise outliers (half and half on each side)
   so <- sample(n*p,n*p*alp.0)
   X[so] <- runif(n*p*alp.0,-20,-15)
   X[sample(so,floor(n*p*alp.0/2),replace=F)] <- runif(floor(n*p*alp.0/2),35,40)
   
-  # R es la asignacion a clusters buena de las filas
+  # R is the good cluster assignment of the rows
   R<- rep(1:K, n.i[1:K])
   
-  # Asignacion buena en Xk con 0 para celdas recortadas
+  # Good assignment in Xk with 0 for trimmed cells
   Xk <- matrix(NA,n,p)
   for (k in (1:K)){
     Xk[which(R==k),] <- k
@@ -82,29 +82,29 @@ matplot(t(X),type="l",lty=1)
 
 #####################################################
 #####################################################
-######Algoritmo                             #########
+######Algorithm                             #########
 #####################################################
 #####################################################
 
-# N. grupos
+# N. size
 K <- 2
-# Tamaño recorte
+# trimming size
 alp <- 0.05
-# Dimension intrinseca
+# Intrinsic Dimension
 q <- 2
 
-# Recorte trimmed k-means
+# trimmed k-means
 alp.tk <- 0.1
-# Recorte regresión robusta
+# Robust regression trimming
 alp.re <- 0.4
-# Suavizado en lowess
+# Smoothing in lowess
 f <- 1/5
-# Número de nodos de splines
+# Number of spline nodes
 knots <- 4
-# El número de loops 
+# The number of loops
 loops <- 20
 
-# Recorte final
+# Final trimming
 alp.real <- alp.real
 
 
@@ -127,19 +127,19 @@ b<-array(NA,dim=c(q,p,K))
 xhat<-array(NA,dim=c(n,p,K))
 
 #####
-# Generando datos (trabajamos en intervalo [0,1])
+# Generating data (we work in interval [0,1])
 s <- (1:p)/p
 
 ##############################################################
-#### PREPOCESADO ############################################
+#### PREPARED ############################################
 ##############################################################
 
 ##################################
-### Se suaviza robusto con "lowess"
+### Smoothes out robustly with "lowess
 lowess.mod <- function(x){lowess(x,f=f,iter=20)$y}
 X.smooth <- t(apply(X,1,lowess.mod))
 
-# Gráfico resumen curvas suavizadas
+# Smoothed Curve Summary Chart
 par(mfrow=c(1,1))
 plot(s,X.smooth[1,],type="n",ylim=c(range(X)[1],range(X)[2]),xlab="",ylab="",main="Smoothed curves (lowess)")
 for(i in 1:n){
@@ -147,14 +147,14 @@ for(i in 1:n){
 }
 
 ##################################
-### Se usa un ajuste de B-splines (suavizar más y reducir dimensionalidad para cluster
-###   de los datos X.smooth)
 
-# Número de nodos
+### A B-splines adjustment is used (further smoothing and reducing dimensionality for X.smooth data clusters)
+# Number of nodes
+
 knots <- knots
 df <- knots+4
 
-# XX será la representación en B splines
+# XX will be the representation in B splines
 XX <- matrix(rep(0,n*df),nrow=n)
 bb <- bs(s, df=df,intercept=T)
 for (u in 1:n){
@@ -173,7 +173,7 @@ for (i in 1:n){
 }
 
 ##################################
-# Trimmed k-means sobre XX
+# Trimmed k-means on XX
 
 library(tclust)
 for( i in 1:3){
@@ -181,13 +181,13 @@ for( i in 1:3){
   
 }
 
-# Gráfico del cluster
+# Graph clustering
 pairs(XX,col=a$cluster+1)
 
 ##################################
-# Inicializar medias y autofunciones
+# Initialize means and eijen-functions
 
-## Medias
+## Means
 m <- bb[,]%*%a$centers[,]
 
 ## Autofunciones
@@ -197,7 +197,7 @@ for (k in 1:K){
   }
 }
 
-## Graficos resumen inicialización cluster
+## Cluster initialization summary graphics
 par(mfrow=c(1,1))
 plot(s,X[1,],type="n",ylim=c(range(X)[1],range(X)[2]),xlab="",ylab="",main="Initial clusters")
 for(i in 1:n){
@@ -213,7 +213,7 @@ for (k in 1:K){
   lines(s,m[,k],lwd=2,lty=2)
 }
 
-# Graficos resumen inicialización autofunciones
+# Self-functioning initialization summary graphics
 par(mfrow=c(k,q))
 for (k in 1:K){
   for (j in 1:q){
@@ -223,8 +223,8 @@ for (k in 1:K){
 }
 
 ##################################
-### Obtener primeros A's, W y W.reduc con regresión robusta y primera asignación
-###  (esta parte es lenta: se podría hacer regresión normal y definir r[i,k] con la suma de los 60% residuales más pequeños)
+### Get first A's, W and W.reduc with robust regression and first assignment
+### (this part is slow: you could do normal regression and define r[i,k] with the sum of the smallest 60% residuals)
 
 for (k in (1:K)){
   #Datos centrados
@@ -238,7 +238,7 @@ for (k in (1:K)){
   }
 }
 
-# Clasificación resultante del LTS
+# Clasification LTS
 cls<-apply(r,1,which.min)
 
 #X estimada
@@ -260,29 +260,29 @@ for(k in 1:K){
   r[,k]<-(p/apply(W[,,k],1,sum))*apply(W[,,k]*rijk[,,k],1,sum)
 }
 
-# Nueva asignación con W  (esta parte se puede no hacer y dejar fijo algún "cls" anterior)
+# New assignment with W
 cls<-apply(r,1,which.min)
 print(table(cls))
 
-#  Crear W.reduc
+#  create W.reduc
 for(k in 1:K){
   W.reduc[,,k] <- W[,,k]
   W.reduc[which(cls!=k),,k]<-rep(0,p)
 }
 
 ##################################
-### Iteraciones (loops) ##########
+### loops ##########
 
-# Inicializar shat.opt
+# Inicialization shat.opt
 shat.opt <- 10^10
 
-# Numero de loops
+# Number of loops
 loops <- loops  
 
 #inicia el loop
 it<-0
 
-# Todo va bien si abortar es 1
+# All is well if abortion is 1
 abortar <- 1
 
 while((it<loops)&(abortar==1)){
@@ -298,7 +298,7 @@ while((it<loops)&(abortar==1)){
     }
   }
   
-  ### estimacion de la media
+  ### mean estimation
   rm <- X
   for(k in 1:K){
     
@@ -330,7 +330,7 @@ while((it<loops)&(abortar==1)){
     }
   }
   
-  ## W con todos
+  ## W 
   n.cls <- table(cls)
   for(k in 1:K){
     for (k1 in 1:K){
@@ -342,7 +342,7 @@ while((it<loops)&(abortar==1)){
   }
   
   
-  # Assignments  (se podría dejar fijo y usar "cls" inicialización comentando la siguiente linea)
+  # Assignments  
   cls<-apply(r,1,which.min)
   print(table(cls))
   
@@ -352,14 +352,14 @@ while((it<loops)&(abortar==1)){
     W.reduc[which(cls!=k),,k]<-rep(0,p)
   }
   
-  ## Ver si todo va bien
+  ## check
   chequeo <- rep(0,K)
   for (k in (1:K)){
     chequeo[k]=sum(W[which(cls==k),,k])
   }
   #print(chequeo)
   
-  # Calcula la funcion objetivo o aborta si tiene problemas con grupos vacios
+  # Calculates target function or aborts if you have problems with empty groups
   if (min(chequeo)>10){shat <- 0
   for(k in 1:K){
     if( is.na( sum(rijk[,,k]) ) ==F )   {shat <- shat +sum(W.reduc[,,k]*rijk[,,k])}  else {shat <- shat +10^10}
@@ -376,7 +376,7 @@ while((it<loops)&(abortar==1)){
 
 
 ##################################
-### Resultados          ##########
+### Results         ##########
 
 W.opt <- W
 cls.opt <- cls
@@ -388,10 +388,10 @@ print(shat.opt)
 m.opt <- m
 rijk.opt <- rijk
 
-# Preciciones en array nxpxK
+# Precisions in array nxpxK
 xhat.opt <- xhat
 
-# Asisgnaciones individuales en WC (matriz nxp con cada celda a su grupo y 0 si es recortada)
+# Individual WC assignations (nxp matrix with each cell in its group and 0 if trimmed)
 WC<-matrix(0,n,p)
 ig<-which(cls.opt==1)
 WC[ig,]<-(W.opt[ig,,1])
@@ -403,7 +403,7 @@ for(i in 2:K){
   WC[ig,]<-Wk[ig,]
 }
 
-### Predicciones en matriz nxp
+### Matrix predictions nxp
 xpred <- x
 for (i in 1:n){
   xpred[i,]<-xhat.opt[i,,cls.opt[i]]
@@ -412,10 +412,10 @@ for (i in 1:n){
 
 ##################################
 ##################################
-### Gráficos resultados ##########
+### Results graphs ##########
 ##################################
 
-# Grafico de lineas grupos juntos y circulos en recortadas
+# Graph of lines groups together and circles for trimmed cells
 par(mfrow=c(1,1))
 plot(s,X[1,],type="n",col=cls.opt[1]+1,ylim=c(range(X)[1],range(X)[2]),xlab="",ylab="")
 for(i in 1:n){
@@ -427,7 +427,7 @@ for(i in 1:n){
 }
 
 
-# Grafico de lineas por grupos separados y circulos en recortadas
+# Graph of lines by separate groups and circles in trimmings
 par(mfrow=c(2,ceiling(K/2)))
 for (k in (1:K)){
   X.grupo <- X[cls.opt==k,]
@@ -443,7 +443,7 @@ for (k in (1:K)){
 }
 
 
-# Grafico autofunciones estimadas
+# Graph of estimated self-functions
 par(mfrow=c(K,q))
 for (k in 1:K){
   for (j in 1:q){
@@ -452,7 +452,7 @@ for (k in 1:K){
   }
 }
 
-# Grafico para interpretar variabilidades
+# Chart for interpreting variability
 par(mfrow=c(K,q+1))
 for (k in 1:K){
   X.grupo <- X[cls.opt==k,]
@@ -471,7 +471,7 @@ for (k in 1:K){
   }
 }
 
-# Grafico de los "scores"
+# Chart of the "scores"
 if (q>=2){
   par(mfrow=c(2,ceiling(K/2)))
   for(k in 1:K){
@@ -482,7 +482,7 @@ if (q>=2){
   }
 }
 
-# Gráfico bonito de WC (se pueden poner nombres a individuos)
+# WC Chart 
 colnames(WC) <- seq(1,p)
 rownames(WC) <- nombres
 longData<-melt(WC)
@@ -493,27 +493,27 @@ ggplot(longData, aes(x = Var2, y = Var1, fill=as.factor(value),color=as.factor(v
 
 
 
-### Comparación predicciones y observado
-# Solo las no-recortadas
+### Comparison of predictions and observations
+# Only the untrimmed ones
 heatmap((x-xpred)*(WC==0),scale="none",Colv=NA,Rowv=NA,col=rainbow(256,start = 1/6))
-# Todas
+# all
 heatmap((x-xpred),scale="none",Colv=NA,Rowv=NA,col=rainbow(256,start = 1/6))
 heatmap((x-xpred),scale="none",Colv=NA,Rowv=NA,col=cm.colors(256))
 
-### Más atipicas
+### More atypical
 mas <- rep(0,n)
 for (i in 1:n){
   mas[i]<-sum((x-xpred)[i,]^2*(WC[i,]==0))
 }
-# Cuales?
+# which?
 sort(mas,decreasing = TRUE,index=TRUE)$ix
 nombres[sort(mas,decreasing = TRUE,index=TRUE)$ix[1:10]]
 
-# Grafico
+# chart
 par(mfrow=c(1,1))
 plot(1:n,mas,type="b",xlab="index",ylab="sum of squared residuals")
 
-#### Algún grafico individual (discontinuo es la predicción)
+#### Some individual graph (discontinuous is the prediction)
 ii <- 3
 par(mfrow=c(1,1))
 plot(s,x[1,],type="n",ylim=c(range(X)[1],range(X)[2]),xlab="",ylab="",main=paste(nombres[ii]))
@@ -524,7 +524,7 @@ lines(s,x[ii,])
 lines(s,xpred[ii,],lty=2,lwd=3)
 points(s[which(WC[ii,]==0)],X[ii,WC[ii,]==0],cex=0.6)
 
-#### Algunos grafico individuales (6 al azar)
+#### Some individual graphs (6 at random)
 par(mfrow=c(2,3))
 iii <- sample(1:n,6,replace=TRUE)
 for (ii in iii){
@@ -537,7 +537,7 @@ for (ii in iii){
   points(s[which(WC[ii,]==0)],X[ii,WC[ii,]==0],cex=0.6)
 }
 
-#### Algunos grafico individuales (6 más atípicos)
+#### Some individual graphs (6 more atypical)
 par(mfrow=c(2,3))
 iii <- sort(mas,decreasing = TRUE,index=TRUE)$ix[1:6]
 for (ii in iii){
@@ -552,24 +552,24 @@ for (ii in iii){
 
 
 #############################################################
-###### Posibilidad de refininamiento                #########
+###### Refinement possible                #########
 #############################################################
 
-# Los residuales al cuadrado de las observaciones
+# Residuals squared from observations
 Rij<-matrix(0,ncol=p, nrow=n)
 for(i in 1:length(cls.opt)){
   Rij[i,]<-rijk.opt[i,1:p,cls.opt[i]]
 }
 
-# Dar alp.real si lo conocemos
+# Give alp.real if we know it
 alp.real <- alp.real
-# Gráfico para estimar el tamaño de recorte final con los nxp residuales ordenados decrecientemente (linea vertical es el alp.real)
+# Chart to estimate the final trim size with the residual nxp ordered decreasingly (vertical line is the real alp.)
 par(mfrow=c(1,1))
 plot((1:ceiling(n*p*0.1))/(n*p),sort(Rij,decreasing = TRUE)[1:ceiling(n*p*0.1)],ylab="residual",xlab="prop")
 abline(v=alp.real)
 
-# Si conocieramos el alp.real (que se podría hacer estudiando la grafica anterior...)
-#   podemos sacar WC.final con la asignación final
+# If we knew the real alp.real (that could be done studying the previous graph...)
+# we can take out WC.final with the final assignment
 Rijo.out<-sort(Rij,index.return=TRUE,decreasing = TRUE)$ix[1:(alp.real*n*p)]
 WC.final<-matrix(0,nrow=n, ncol=p)
 for(k in 1:K){
@@ -577,16 +577,16 @@ for(k in 1:K){
 }
 WC.final[Rijo.out] <- 0
 
-## Curvas recortadas enteras
+## Entirely trimmed curves
 ttt <- which(apply(WC.final==0,1,sum)/p > alp.re)
 nombres[ttt]
 
-### Cambiar WC.final quitando recortadas enteras
+### Change WC.final by removing entire cutouts
 for(i in ttt){
   WC.final[i,] <- rep(0,p)
 }
 
-# Grafico bonito final de WC.final
+# final WC.final
 colnames(WC.final) <- seq(1,p)
 rownames(WC.final) <- nombres  # O el nombre de los individuos nombres
 longData.final<-melt(WC.final)
@@ -594,8 +594,8 @@ ggplot(longData.final, aes(x = Var2, y = Var1, fill=as.factor(value),color=as.fa
   geom_raster() +   labs(x="p", y="n")+
   scale_fill_manual(name="code",values=1:(K+1) )
 
-### Comparación predicciones y observado
-# Solo las no-recortadas y muy roja la recortada enteramente
+### Comparison of predictions and observed
+# Only the untrimmed and very red the whole trimmed
 represent <- (x-xpred)*(WC.final==0)
 maxx <- range(represent)[2]
 for (i in ttt){
@@ -603,8 +603,8 @@ for (i in ttt){
 }
 heatmap(represent,scale="none",Colv=NA,Rowv=NA,col=rainbow(256,start = 1/6))
 
-### Comparación predicciones y observado
-# y muy roja la recortada enteramente
+### Comparison of predictions and observed
+# and very red the whole trimmed
 represent <- (x-xpred)
 maxx <- range(represent)[2]
 for (i in ttt){
@@ -612,7 +612,7 @@ for (i in ttt){
 }
 heatmap(represent,scale="none",Colv=NA,Rowv=NA,col=rainbow(256,start = 1/6))
 
-# Gráfico de medias
+# Average Chart
 par(mfrow=c(1,1))
 plot(s,X[1,],type="n",col=cls.opt[1]+1,ylim=c(range(X)[1],range(X)[2]),xlab="",ylab="")
 for(i in 1:n){
@@ -622,7 +622,7 @@ for (k in (1:K)){
   lines(s,m.opt[,k],lwd=2,col=k+1)
 }
 
-# Grafico por grupos por seaparados despues refinamiento
+# Chart by groups per seaparado after refinement
 par(mfrow=c(2,ceiling(K/2)))
 for (k in (1:K)){
   plot(s,X[1,],type="n",col=k+1,ylim=c(range(X)[1],range(X)[2]),xlab="",ylab="",main=paste("cluster",k))
@@ -659,7 +659,7 @@ for(i in setdiff(1:n,ttt)){
 
 
 
-# Grafico de lineas grupos juntos y recortadas despues refinamiento
+# Graph of line groups together and trimmed after refinement
 par(mfrow=c(1,1))
 plot(s,X[1,],type="n",col=cls.opt[1]+1,ylim=c(range(X)[1],range(X)[2]),xlab="",ylab="")
 for(i in 1:n){
