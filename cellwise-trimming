@@ -1,0 +1,333 @@
+library("tclust")
+library("splines")
+library("robustbase")
+
+###################################
+## Function's INPUT parameters
+###################################
+# X is the input data set
+# K is the number of clusters
+# alp is the initial trimming level
+# q=q_1=...=q_K are the common intrinsic approximating subspaces dimension 
+#####
+## Iteration parameters
+# loops1: number of external loops
+# loops2: number of internal loops
+#####
+## Additional tunning parameters
+# alp.tk is the trimming level for "tclust"
+# alp.re is the trimming level for LTS regression
+# f is the smoothing parameter in "lowess"
+# knots number of internal knots in the B-splines representation
+
+##################################
+## Function's OUTPUT values
+##################################
+# Optimal weights "W.opt"
+# Optimal assigments"cls.opt"
+# Target function values "shat.opt"
+# Optimal A's matrices: "A.opt"
+# Optimal B's matrices: "b.opt"
+# Optimal mean functions: "m.opt"
+# Predicted data values: "xpred.opt"
+
+#####################################################
+#####################################################
+###### "Cellwise" FUNCTION DEFINITION       #########
+#####################################################
+#####################################################
+
+Cellwise <- function(X,K,alp,q,alp.tk=.1,alp.re=.4,f=1/5,knots=4,loops1=2,loops2=10){
+  
+  #####################################
+  ######## Initialization of variables and matrices #####
+  x <- X
+  n<-nrow(X)
+  p<-ncol(X)
+  W<-array(NA,c(n,p,K))
+  W.reduc <-W
+  m <- matrix(0,nrow=p, ncol=K)
+  cls <- rep(1,n)
+  rij<-matrix(0,nrow=length(X), ncol=K)
+  rijk<-array(NA,c(n,p,K))
+  m<-matrix(0,nrow=p, ncol=K)
+  r<-matrix(0,nrow=n, ncol=K)
+  A<-array(NA,dim=c(q,n,K))
+  b<-array(NA,dim=c(q,p,K))
+  xhat<-array(NA,dim=c(n,p,K))
+  
+  #####
+  # An equispaced grid to work in the [0,1] interval
+  s <- (1:p)/p
+  
+  ##############################################################
+  #### Preprocesing step #######################################
+  ##############################################################
+  
+  ##################################
+  ### Smoothing with "lowess"
+  lowess.mod <- function(x){lowess(x,f=f,iter=20)$y}
+  X.smooth <- t(apply(X,1,lowess.mod))
+  
+  ##################################
+  ### B-splines fitting (additional smoothing and dimensionality reduction)
+  
+  # Total number of knots
+  knots <- knots
+  df <- knots+4
+  
+  # XX is the "small dimensional" representation of data for initialization B splines
+  XX <- matrix(rep(0,n*df),nrow=n)
+  bb <- bs(s, df=df,intercept=T)
+  for (u in 1:n){
+    fit <-lm(X.smooth[u,] ~ -1+bb)
+    XX[u,] <-fit$coefficients
+  }
+
+  ##################################
+  # TCLUST robust clustering method applied on XX for initialization (only one
+  #   random initialization based on TCLUST is applied but other robust clustering
+  #   can be applied too)
+  
+  a <- tclust(XX,k=K,alpha=alp.tk,nstar=200*K,restr.fact=10,warnings=0)# Si se aumenta K hay que incrementar niter
+ 
+  ##################################
+  # Initializing the m vectors and the B matrices
+  
+  ## Mean vectors
+  m <- bb[,]%*%a$centers[,]
+  
+  ## B matrices
+  for (k in 1:K){
+    for (j in 1:q){
+      b[j,,k] <- bb[,]%*%eigen(a$cov[,,k])$vectors[,j]
+    }
+  }
+
+
+  ########################################
+  ### External and internal loops ########
+
+  # Initializing target function with a very high value
+  shat.opt <- 10^10
+  
+  # Abort computation if troubles
+  abort <- 1
+
+  loops1 <-  loops1
+  loops2 <- loops2
+  
+  ##################################
+  # Starting the external loops (loop1):  
+  it1 <- 0
+  while((it1<loops1)&(abort==1)){
+    it1 <- it1+1
+    
+    cat("Loop 1 = ",it1,"\n")
+    
+    ############################
+    # First A's matrices and first assignments
+    
+    for (k in (1:K)){
+      # Center data matrix
+      xc<-scale(x,center=m[,k],scale = FALSE )
+      
+      # Initialzing A's matrix by using LTS robust regression 
+      for(i in 1:n) {
+        rr <- ltsReg(xc[i,]~matrix(t(b[1:q,1:p,k]),nrow=p,ncol=q)-1,alpha=1-alp.re,nsamp =50)   
+        A[,i,k] <-rr$coefficients
+        r[i,k] <- rr$raw.scale  #Use LTS residuals to compute "distances" to approximating subspaces
+      }
+    }
+    
+    # First assignments from LTS
+    cls<-apply(r,1,which.min)
+ 
+    # Starting internal loops (loops2) (improving m vector, B matrices and A matrices with fixed assignments)
+    it2 <- 0
+    while((it2<loops2)&(abort==1)){
+      it2 <- it2+1
+      print(it2)
+      
+      ###########################
+      # Matrix with updated weights
+      
+      # Estimated data matrix xhat
+            for(k in 1:K){
+        for(i in 1:n){
+          xhat[i,,k]<-m[,k]+as.vector(matrix(t(b[1:q,1:p,k]),nrow=p,ncol=q)%*%(matrix(A[1:q,i,k],nrow=q,ncol=1)))
+          rijk[i,,k]<-(x[i,]-xhat[i,,k])^2
+        }
+      }
+      
+      # Creating weights
+      n.cls <- table(cls)
+      for(k in 1:K){
+        for(j in 1:p){
+          W[cls==k,j,k] <- as.numeric( rijk[cls==k,j,k] <= sort(rijk[cls==k,j,k])[ceiling(n.cls[k]*(1-alp))] )
+        }
+      }
+      
+      #  Reduced matrices of weights (W.reduc)
+      for(k in 1:K){
+        W.reduc[,,k] <- W[,,k]
+        W.reduc[which(cls!=k),,k]<-rep(0,p)
+      }
+      
+      ####################################
+      # Updating m vectors and the B' and A's matrices
+      
+      for(k in 1:K){
+        ### Updating B's matrices
+        rida<-apply((W.reduc[,,k]),2,sum)
+        ida<-which(rida>(q+1))
+        for(j in sort(ida)){
+          b[1:q,j,k] <- lm((x[,j]-m[j,k]) ~matrix(t(A[1:q,1:n,k]),nrow=n,ncol=q)-1,weights = W.reduc[,j,k])$coefficients
+        }
+      }
+      
+      # Updating mean vectors
+      rm <- X
+      for(k in 1:K){
+        
+        for(i in 1:n){
+          rm[i,1:p]<-x[i,]-as.vector(matrix(t(b[1:q,1:p,k]),nrow=p,ncol=q)%*%(matrix(A[1:q,i,k],nrow=q,ncol=1)))
+        }
+        
+        m[,k]<-as.matrix((1/colSums(W.reduc[,,k]))*as.matrix(colSums(W.reduc[,,k]*rm)))
+      }
+      
+      # Updating A's matrices
+      for(k in 1:K){
+        # Centred data
+        xc<-scale(x,center = m[,k],scale = FALSE)
+        
+        iw<-apply(as.matrix(W.reduc[,,k]),1,sum)
+        inx<-which(iw>(q+1))
+        for(i in inx) {
+          A[1:q,i,k] <- lm(xc[i, ]~matrix(t(b[1:q,1:p,k]),nrow=p,ncol=q)-1,weights = W.reduc[i,1:p,k])$coefficients
+        }
+      }
+
+      # Check if everything is ok
+      check <- rep(0,K)
+      for (k in (1:K)){
+        check[k]=sum(W[which(cls==k),,k])
+      }
+      #print(check)
+      
+      # Compute target function or abort computing if troubles appear (due to empty clusters)
+      if (min(check)>10){shat <- 0
+      for(k in 1:K){
+        if( is.na( sum(rijk[,,k]) ) ==F )   {shat <- shat +sum(W.reduc[,,k]*rijk[,,k])}  else {shat <- shat +10^10}
+      }
+      #print(shat)
+      }
+      else{abort <-0
+      print("Abort computing")
+      #print(check)
+      shat <- 10^10
+      }
+      
+    }  # Ending of loop2
+    
+    
+  }  # Ending of loop1
+  ## Ending of the iterative procedure
+  
+  
+  # Predictions in a nxp matrix
+  xpred <- X
+  for (i in 1:n){
+    xpred[i,]<-xhat[i,,cls[i]]
+  }
+
+  # Returning the final output of the prcedure
+  clustfd <- list(W,cls,shat,A,b,m,rijk,xpred)
+  names(clustfd) <- c("W.opt","cls.opt", "shat.opt","A.opt","b.opt","m.opt","rijk.opt","xpred.opt")
+  return(clustfd)
+}
+########################################
+##### END of FUNCTION definition #######
+########################################
+
+
+#############################################################
+############### EXAMPLE:        #############################
+# SIMULATING a DATA set with 3% of scatterd outlying cells ##
+#############################################################
+set.seed(1)
+# Fraction of cellwise outliers
+alp.0 <- 0.03
+# Number of clusters
+K <- 2 
+# Dimension
+p<- 100
+
+# Clusters sizes 
+n.i <- rep(200,K)
+n <- sum(n.i[1:K])
+
+# Equispaced grip in the [0,1] interval
+s <- (1:p)/p
+
+
+m.1 <- function(x){5+10*sin(4*pi*x)*exp(-2*x)+5*sin(pi*x/3)+2*cos(2*pi/2)}
+rho1.1 <- function(x){sqrt(2)*cos(2*pi*x)}
+rho2.1 <- function(x){sqrt(2)*sin(2*pi*x)}
+
+m.2 <- function(x){10+10*cos(4*pi*x)}
+rho1.2 <- function(x){sqrt(2)*sin(2*pi*x)}
+rho2.2 <- function(x){sqrt(2)*cos(2*pi*x)}
+
+X <- matrix(NA,n,p)
+
+for (i in 1:n.i[1]){
+  X[i,] <- m.1(s)+rnorm(1,0,3)*rho1.1(s)+rnorm(1,0,2)*rho2.1(s)+rnorm(p,0,0.5)
+}
+
+for (i in (n.i[1]+1):(n.i[1]+n.i[2])){
+  X[i,] <- m.2(s)+rnorm(1,0,4)*rho1.2(s)+rnorm(1,0,2)*rho2.2(s)+rnorm(p,0,0.5)
+}
+
+# Generating cellwise outliers
+so <- sample(n*p,n*p*alp.0)
+X[so] <- runif(n*p*alp.0,-20,-15)
+X[sample(so,floor(n*p*alp.0/2),replace=F)] <- runif(floor(n*p*alp.0/2),35,40)
+
+# Graphic with the simulated curves
+par(mfrow=c(1,1))
+matplot(t(X),type="l",lty=1)
+
+
+#############################################################
+#############################################################
+# CALLING the "Cellwise" FUNCTION                  ##########
+#############################################################
+
+R <- Cellwise(X,K=2,alp=0.1,q=2)
+
+#############################################################
+#############################################################
+# PLOTTING some obtained results                   ##########
+#############################################################
+
+## GRAPH 1: Clusters in different colors and trimmed cells in black
+par(mfrow=c(1,1))
+plot(s,X[1,],type="n",col=R$cls.opt[1]+1,ylim=c(range(X)[1],range(X)[2]),xlab="",ylab="")
+for(i in 1:n){
+  lines(s,X[i,],col=R$cls.opt[i]+1)
+}
+
+for(i in 1:n){
+  points(s[which(R$W.opt[i,,R$cls.opt[i]]==0)],X[i,R$W.opt[i,,R$cls.opt[i]]==0],cex=0.6)
+}
+
+### GRAPH 2: Sorted squared residuals (for retrieving wrongly trimmed cells)
+# Squared residuals
+Rij <- (X-R$xpred.opt)^2
+# Sorted residuals (to suggest the final number of observations to be trimmed)
+par(mfrow=c(1,1))
+plot((1:ceiling(n*p*0.1))/(n*p),sort(Rij,decreasing = TRUE)[1:ceiling(n*p*0.1)],ylab="Sorted residuals",xlab="Proportion")
+
+
